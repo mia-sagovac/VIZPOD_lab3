@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 # Naslov i opis
 st.set_page_config(
@@ -8,9 +10,12 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Spotify track_genre Exploratory Analysis")
-st.write(
-    "Interaktivna vizualna eksploratorna analiza audio značajki Spotify pjesama."
+st.title("Eksploratorna Analiza audio značajki Spotify pjesama")
+st.markdown(
+    """
+    Ova aplikacija prikazuje **interaktivnu vizualnu eksploratornu analizu**
+    audio značajki Spotify pjesama, s fokusom na razlike između glazbenih žanrova.
+    """
 )
 
 # Učitavanje podataka iz .csv-a
@@ -20,11 +25,9 @@ def load_data():
 
 df = load_data()
 
-st.write("Broj zapisa:", df.shape[0])
+st.write("**Ukupan broj zapisa:**", df.shape[0])
 
-
-
-# Postavljanje filtera
+# Filteri
 st.sidebar.header("Filteri")
 
 track_genres = st.sidebar.multiselect(
@@ -34,7 +37,7 @@ track_genres = st.sidebar.multiselect(
 )
 
 popularity_range = st.sidebar.slider(
-    "Popularnost",
+    "Raspon popularnosti",
     int(df["popularity"].min()),
     int(df["popularity"].max()),
     (20, 80)
@@ -45,58 +48,80 @@ df_filtered = df[
     (df["popularity"].between(*popularity_range))
 ]
 
-st.write("Filtrirani zapisi:", df_filtered.shape[0])
-
+st.write("**Broj filtriranih zapisa:**", df_filtered.shape[0])
 
 # Prikaz filtriranih zapisa
-if st.checkbox("Prikaži filtrirane podatke (tablica)"):
+with st.expander("Prikaži filtrirane podatke (tablica)"):
     st.dataframe(
         df_filtered,
         use_container_width=True,
         height=500
     )
 
-
-
-# Prva vizualizacija - Danceability vs Energy
-fig = px.scatter(
-    df_filtered,
-    x="danceability",
-    y="energy",
-    color="track_genre",
-    size="popularity",
-    hover_data=["track_name", "artists"],
-    title="Danceability vs Energy by Genre"
+# Tabovi
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["Pregled", "Distribucije", "Korelacije", "PCA & Agregacije"]
 )
 
-st.plotly_chart(fig, use_container_width=True)
+# Tab 1 - pregled
+with tab1:
+    st.subheader("Danceability vs Energy")
 
+    fig_scatter = px.scatter(
+        df_filtered,
+        x="danceability",
+        y="energy",
+        color="track_genre",
+        size="popularity",
+        hover_data=["track_name", "artists"],
+        title="Danceability vs Energy po žanrovima"
+    )
 
-# Box-plot distribucija za Danceability vs Energy
-col1, col2 = st.columns(2)
+    st.plotly_chart(fig_scatter, use_container_width=True)
 
-with col1:
-    st.subheader("Distribucija Danceability")
-    fig1 = px.box(df_filtered, x="track_genre", y="danceability")
-    st.plotly_chart(fig1, use_container_width=True)
+    st.info(
+        "Scatter plot prikazuje odnos između plesnosti (danceability) i energije pjesama. "
+        "Vidljivo je da se pojedini žanrovi grupiraju u prostoru, što sugerira slične audio karakteristike."
+    )
 
-with col2:
-    st.subheader("Distribucija Energy")
-    fig2 = px.box(df_filtered, x="track_genre", y="energy")
-    st.plotly_chart(fig2, use_container_width=True)
+# Tab 2 - distribucije
+with tab2:
+    col1, col2 = st.columns(2)
 
-# heat map korelacije
-st.subheader("Korelacija audio značajki (Heatmap)")
+    with col1:
+        st.subheader("Distribucija Danceability")
+        fig_box_d = px.box(
+            df_filtered,
+            x="track_genre",
+            y="danceability"
+        )
+        st.plotly_chart(fig_box_d, use_container_width=True)
 
-audio_features = [
-    "danceability", "energy", "valence", "acousticness",
-    "instrumentalness", "liveness", "speechiness",
-    "tempo", "loudness", "duration_ms", "popularity"
-]
+    with col2:
+        st.subheader("Distribucija Energy")
+        fig_box_e = px.box(
+            df_filtered,
+            x="track_genre",
+            y="energy"
+        )
+        st.plotly_chart(fig_box_e, use_container_width=True)
 
-audio_features = [c for c in audio_features if c in df_filtered.columns]
+    st.info(
+        "Box-plotovi prikazuju raspodjelu audio značajki po žanrovima. "
+        "Neki žanrovi imaju višu medijanu energije ili plesnosti, dok su drugi raspršeniji."
+    )
 
-if len(audio_features) >= 2:
+# Tab 3 - korelacije
+with tab3:
+    st.subheader("Korelacija audio značajki")
+
+    audio_features = [
+        "danceability", "energy", "valence", "acousticness",
+        "instrumentalness", "liveness", "speechiness",
+        "tempo", "loudness", "duration_ms", "popularity"
+    ]
+    audio_features = [c for c in audio_features if c in df_filtered.columns]
+
     corr_method = st.selectbox(
         "Metoda korelacije",
         ["pearson", "spearman", "kendall"],
@@ -107,80 +132,82 @@ if len(audio_features) >= 2:
 
     fig_corr = px.imshow(
         corr_matrix,
-        text_auto=True,
+        text_auto=".2f",
         aspect="auto",
         title=f"Korelacijska matrica ({corr_method})"
     )
+
     st.plotly_chart(fig_corr, use_container_width=True)
-else:
-    st.info("pogreska")
 
-# pca
+    st.info(
+        "Heatmap korelacije pokazuje koje su audio značajke međusobno povezane. "
+        "Primjerice, energy i loudness često imaju jaku pozitivnu korelaciju, "
+        "dok acousticness ima negativnu povezanost s energy."
+    )
 
-st.subheader("PCA (2D projekcija audio značajki)")
+# Tab 4 - PCA i korelacije
+with tab4:
+    st.subheader("PCA - redukcija dimenzionalnosti")
 
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
+    pca_features = [
+        "danceability", "energy", "valence", "acousticness",
+        "instrumentalness", "liveness", "speechiness",
+        "tempo", "loudness"
+    ]
+    pca_features = [c for c in pca_features if c in df_filtered.columns]
 
-pca_features = [
-    "danceability", "energy", "valence", "acousticness",
-    "instrumentalness", "liveness", "speechiness",
-    "tempo", "loudness"
-]
-pca_features = [c for c in pca_features if c in df_filtered.columns]
-
-if len(pca_features) >= 2 and df_filtered.shape[0] >= 5:
     pca_df = df_filtered.dropna(subset=pca_features).copy()
 
-    X = pca_df[pca_features].values
-    X_scaled = StandardScaler().fit_transform(X)
+    if pca_df.shape[0] >= 5:
+        X = pca_df[pca_features].values
+        X_scaled = StandardScaler().fit_transform(X)
 
-    pca = PCA(n_components=2, random_state=42)
-    comps = pca.fit_transform(X_scaled)
+        pca = PCA(n_components=2, random_state=42)
+        components = pca.fit_transform(X_scaled)
 
-    pca_df["PC1"] = comps[:, 0]
-    pca_df["PC2"] = comps[:, 1]
+        pca_df["PC1"] = components[:, 0]
+        pca_df["PC2"] = components[:, 1]
 
-    explained = pca.explained_variance_ratio_ * 100
+        explained = pca.explained_variance_ratio_ * 100
 
-    fig_pca = px.scatter(
-        pca_df,
-        x="PC1",
-        y="PC2",
-        color="track_genre" if "track_genre" in pca_df.columns else None,
-        size="popularity" if "popularity" in pca_df.columns else None,
-        hover_data=["track_name", "artists"] if all(c in pca_df.columns for c in ["track_name", "artists"]) else None,
-        title=f"PCA: PC1 ({explained[0]:.1f}%) vs PC2 ({explained[1]:.1f}%)"
-    )
-    st.plotly_chart(fig_pca, use_container_width=True)
-else:
-    st.info("pogreska")
+        fig_pca = px.scatter(
+            pca_df,
+            x="PC1",
+            y="PC2",
+            color="track_genre",
+            size="popularity",
+            hover_data=["track_name", "artists"],
+            title=f"PCA: PC1 ({explained[0]:.1f}%) vs PC2 ({explained[1]:.1f}%)"
+        )
 
-#agregacije po žanru
-st.subheader("Agregacije po žanru (prosječne vrijednosti)")
+        st.plotly_chart(fig_pca, use_container_width=True)
 
-agg_features = [
-    "danceability", "energy", "valence", "acousticness",
-    "instrumentalness", "liveness", "speechiness",
-    "tempo", "loudness", "popularity"
-]
-agg_features = [c for c in agg_features if c in df_filtered.columns]
+        st.info(
+            "PCA projicira višedimenzionalni prostor audio značajki u 2D. "
+            "PC1 uglavnom opisuje energične i plesne karakteristike, dok PC2 "
+            "razlikuje akustične i instrumentalne pjesme. "
+            "Vidljivo je djelomično grupiranje žanrova."
+        )
 
-if "track_genre" in df_filtered.columns and len(agg_features) > 0:
+    # Agregacije
+    st.subheader("Agregacije po žanru")
+
+    agg_features = [
+        "danceability", "energy", "valence", "acousticness",
+        "instrumentalness", "liveness", "speechiness",
+        "tempo", "loudness", "popularity"
+    ]
+    agg_features = [c for c in agg_features if c in df_filtered.columns]
+
     df_genre_agg = (
         df_filtered
         .groupby("track_genre")[agg_features]
         .mean(numeric_only=True)
         .reset_index()
-        .sort_values("popularity", ascending=False) if "popularity" in agg_features else
-        df_filtered.groupby("track_genre")[agg_features].mean(numeric_only=True).reset_index()
     )
 
-    st.dataframe(df_genre_agg, use_container_width=True)
-
-    st.markdown("### Bar chart: odaberi feature")
     selected_feature = st.selectbox(
-        "Feature za usporedbu po žanru",
+        "Odaberi značajku za usporedbu po žanru",
         options=agg_features,
         index=agg_features.index("popularity") if "popularity" in agg_features else 0
     )
@@ -191,6 +218,10 @@ if "track_genre" in df_filtered.columns and len(agg_features) > 0:
         y=selected_feature,
         title=f"Prosječni {selected_feature} po žanru"
     )
+
     st.plotly_chart(fig_bar, use_container_width=True)
-else:
-    st.info("pogreska")
+
+    st.info(
+        "Agregirani prikaz omogućuje usporedbu prosječnih vrijednosti audio značajki "
+        "između žanrova. Ovo olakšava uočavanje dominantnih karakteristika svakog žanra."
+    )
