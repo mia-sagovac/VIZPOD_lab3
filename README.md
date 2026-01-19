@@ -11,3 +11,7 @@ Treći labos predmeta 'Vizualizacija podataka'.
 
 3. Spremanje dependencya:
     - pip freeze > requirements.txt
+
+## Pokretanje aplikacije
+- streamlit run app.py
+
