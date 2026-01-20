@@ -60,7 +60,7 @@ with st.expander("Prikaži filtrirane podatke (tablica)"):
 
 # Tabovi
 tab1, tab2, tab3, tab4 = st.tabs(
-    ["Pregled", "Distribucije", "Korelacije", "PCA & Agregacije"]
+    ["Pregled", "Distribucije", "Korelacije", "Agregacije"]
 )
 
 # Tab 1 - pregled
@@ -145,50 +145,8 @@ with tab3:
         "dok acousticness ima negativnu povezanost s energy."
     )
 
-# Tab 4 - PCA i korelacije
+# Tab 4 - Agregacije
 with tab4:
-    st.subheader("PCA - redukcija dimenzionalnosti")
-
-    pca_features = [
-        "danceability", "energy", "valence", "acousticness",
-        "instrumentalness", "liveness", "speechiness",
-        "tempo", "loudness"
-    ]
-    pca_features = [c for c in pca_features if c in df_filtered.columns]
-
-    pca_df = df_filtered.dropna(subset=pca_features).copy()
-
-    if pca_df.shape[0] >= 5:
-        X = pca_df[pca_features].values
-        X_scaled = StandardScaler().fit_transform(X)
-
-        pca = PCA(n_components=2, random_state=42)
-        components = pca.fit_transform(X_scaled)
-
-        pca_df["PC1"] = components[:, 0]
-        pca_df["PC2"] = components[:, 1]
-
-        explained = pca.explained_variance_ratio_ * 100
-
-        fig_pca = px.scatter(
-            pca_df,
-            x="PC1",
-            y="PC2",
-            color="track_genre",
-            size="popularity",
-            hover_data=["track_name", "artists"],
-            title=f"PCA: PC1 ({explained[0]:.1f}%) vs PC2 ({explained[1]:.1f}%)"
-        )
-
-        st.plotly_chart(fig_pca, use_container_width=True)
-
-        st.info(
-            "PCA projicira višedimenzionalni prostor audio značajki u 2D. "
-            "PC1 uglavnom opisuje energične i plesne karakteristike, dok PC2 "
-            "razlikuje akustične i instrumentalne pjesme. "
-            "Vidljivo je djelomično grupiranje žanrova."
-        )
-
     # Agregacije
     st.subheader("Agregacije po žanru")
 
